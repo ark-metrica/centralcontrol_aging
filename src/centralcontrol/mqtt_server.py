@@ -542,7 +542,7 @@ def _ivt(pixels, request, measurement, mqttc):
     mqttc.append_payload("daq/stop", pickle.dumps(""))
 
 
-def _run(request, mqtthost):
+def _run(request, mqtthost, daq_init_queue):
     """Act on command line instructions.
 
     Parameters
@@ -551,8 +551,12 @@ def _run(request, mqtthost):
         Request dictionary sent to the server.
     mqtthost : str
         MQTT broker IP address or hostname.
-    dummy : bool
-        Flag for dummy mode using virtual instruments.
+    daq_init_queue : multiprocessing.Queue
+        Queue for holding incoming messages on daq/init topic, signalling whether DAQ
+        initialisation was successful. The consumer of this queue is the _run method
+        which waits for a message to determine whether it's ok to perform the run based
+        on the init status of the DAQ. The _run method always runs in parallel process
+        so requires a multiprocessing.Queue.
     """
     print("Running measurement...")
 
@@ -564,6 +568,22 @@ def _run(request, mqtthost):
     if ("IV_stuff" in args) and (args["enable_solarsim"] is True):
         user_aborted = _calibrate_spectrum(request, mqtthost)
 
+    # check if DAQ is connected
+    if user_aborted is False:
+        try:
+            with MQTTQueuePublisher() as mqttc:
+                mqttc.connect(mqtthost)
+                mqttc.loop_start()
+                _log("Checking DAQ status...", 20, mqttc)
+
+            daq_init_msg = daq_init_queue.get(timeout=30)
+
+            if daq_init_msg["init_success"] is False:
+                user_aborted = True
+        except:
+            # timeout probably occured waiting for response
+            user_aborted = True
+
     if user_aborted is False:
         with MQTTQueuePublisher() as mqttc:
             mqttc.connect(mqtthost)
@@ -571,7 +591,9 @@ def _run(request, mqtthost):
             try:
                 with fabric() as measurement:
                     _log("Starting run...", 20, mqttc)
-                    measurement.current_limit = request["config"]["smu"][0]["current_limit"]
+                    measurement.current_limit = request["config"]["smu"][0][
+                        "current_limit"
+                    ]
 
                     if "IV_stuff" in args:
                         q = _build_q(request, experiment="solarsim")
@@ -586,11 +608,14 @@ def _run(request, mqtthost):
                 pass
             except Exception as e:
                 traceback.print_exc()
-                _log(f"RUN ABORTED! " + str(e), 40, mqttc)
+                _log("RUN ABORTED! " + str(e), 40, mqttc)
+    else:
+        with MQTTQueuePublisher() as mqttc:
+            mqttc.connect(mqtthost)
+            mqttc.loop_start()
+            _log("RUN ABORTED!", 40, mqttc)
 
-            mqttc.append_payload(
-                "measurement/status", pickle.dumps("Ready"), retain=True
-            )
+    mqttc.append_payload("measurement/status", pickle.dumps("Ready"), retain=True)
 
 
 def on_message(mqttc, obj, msg, msg_queue):
@@ -598,7 +623,7 @@ def on_message(mqttc, obj, msg, msg_queue):
     msg_queue.put_nowait(msg)
 
 
-def msg_handler(msg_queue, cli_args, process):
+def msg_handler(msg_queue, cli_args, process, daq_init_queue):
     """Handle MQTT messages in the msg queue.
 
     This function should run in a separate thread, polling the queue for messages.
@@ -606,26 +631,53 @@ def msg_handler(msg_queue, cli_args, process):
     Actions that require instrument I/O run in a worker process. Only one action
     process can run at a time. If an action process is running the server will
     report that it's busy.
+
+    Parameters
+    ----------
+    msq_queue: queue.Queue
+        Incoming MQTT message queue.
+    cli_args : argparse.Parseargs
+        Command line arguments for this server.
+    process : multiprocessing.Process
+        Object for running called function in a separate process.
+    daq_init_queue: multiprocessing.Queue
+        Queue for holding incoming messages on daq/init topic, signalling whether DAQ
+        initialisation was successful. The consumer of this queue is the _run method
+        which waits for a message to determine whether it's ok to perform the run based
+        on the init status of the DAQ. The _run method always runs in parallel process
+        so requires a multiprocessing.Queue.
     """
     while True:
         msg = msg_queue.get()
 
         try:
             request = pickle.loads(msg.payload)
-            action = msg.topic.split("/")[-1]
+            topic_parts = msg.topic.split("/")
+            channel = topic_parts[0]
+            action = topic_parts[-1]
 
-            # perform a requested action
-            if (action == "run") and (
-                (request["args"]["enable_eqe"] is True)
-                or (request["args"]["enable_iv"] is True)
-            ):
-                process = start_process(
-                    cli_args, process, _run, (request, cli_args.mqtthost)
-                )
-            elif action == "stop":
-                process = stop_process(cli_args, process)
+            if channel == "measurement":
+                # perform a requested action
+                if (action == "run") and (
+                    (request["args"]["enable_eqe"] is True)
+                    or (request["args"]["enable_iv"] is True)
+                ):
+                    process = start_process(
+                        cli_args,
+                        process,
+                        _run,
+                        (request, cli_args.mqtthost, daq_init_queue),
+                    )
+                elif action == "stop":
+                    process = stop_process(cli_args, process)
+            elif channel == "daq":
+                if action == "init":
+                    daq_init_queue.put_nowait(request)
         except:
-            pass
+            with MQTTQueuePublisher() as mqttc:
+                mqttc.connect(cli_args.mqtthost)
+                mqttc.loop_start()
+                _log(f"Invalid message payload on topic: {msg.topic}!", 40, mqttc)
 
         msg_queue.task_done()
 
@@ -640,6 +692,9 @@ def main():
 
     # queue for storing incoming messages
     msg_queue = queue.Queue()
+
+    # queue for storing daq init messages
+    daq_init_queue = multiprocessing.Queue()
 
     # create mqtt client id
     client_id = f"measure-{uuid.uuid4().hex}"
@@ -659,7 +714,7 @@ def main():
 
     print(f"{client_id} connected!")
 
-    msg_handler(msg_queue, cli_args, process)
+    msg_handler(msg_queue, cli_args, process, daq_init_queue)
 
 
 # required when using multiprocessing in windows, advised on other platforms
