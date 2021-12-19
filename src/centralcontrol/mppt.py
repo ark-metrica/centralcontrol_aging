@@ -1,13 +1,11 @@
 """MPPT."""
-
-import numpy
 import pickle
 import time
 import random
 import warnings
 from collections import deque
 
-from centralcontrol import mqtt_server
+import numpy
 
 
 class mppt:
@@ -75,45 +73,45 @@ class mppt:
             Pmaxs[ch] = Pmax
             Impps[ch] = Impp
             maxIndexs[ch] = maxIndex
-            if light == True:  # this was from a light i-v curve
-                print(
-                    "MPPT IV curve inspector investigating new light curve params: "
-                    + f"{(Pmax, Vmpp, Impp, Voc, Isc)}"
-                )
+            if light is True:  # this was from a light i-v curve
+                # print(
+                #     "MPPT IV curve inspector investigating new light curve params: "
+                #     + f"{(Pmax, Vmpp, Impp, Voc, Isc)}"
+                # )
                 new_pmax = False
                 if ch in self.Pmax:
                     if Pmax > self.Pmax[ch]:
                         new_pmax = True
-                        because = (
-                            f"we beat the old max power value, {Pmax} > "
-                            + f"{self.Pmax[ch]} [W]"
-                        )
+                        # because = (
+                        #     f"we beat the old max power value, {Pmax} > "
+                        #     + f"{self.Pmax[ch]} [W]"
+                        # )
                 else:
-                    because = "there was no previous one."
+                    # because = "there was no previous one."
                     new_pmax = True
 
-                if new_pmax == True:
-                    print(
-                        f"New refrence IV curve found for MPPT algo because {because}"
-                    )
+                if new_pmax is True:
+                    # print(
+                    #     f"New refrence IV curve found for MPPT algo because {because}"
+                    # )
 
                     self.Vmpp[ch] = Vmpp
                     self.Impp[ch] = Impp
                     self.Pmax[ch] = Pmax
                     # store off measurement value for this one
                     self.Mmpp[ch] = (Vmpp, Impp, Tmpp)
-                    print(
-                        f"V_mpp = {self.Vmpp[ch]}[V]\nI_mpp = {self.Impp[ch]}[A]\n"
-                        + f"P_max = {self.Pmax[ch]}[W]"
-                    )
+                    # print(
+                    #     f"V_mpp = {self.Vmpp[ch]}[V]\nI_mpp = {self.Impp[ch]}[A]\n"
+                    #     + f"P_max = {self.Pmax[ch]}[W]"
+                    # )
                     if (min(v) <= 0) and (max(v) >= 0):
                         # if we had data on both sizes of 0V, then we can estimate Isc
                         self.Isc[ch] = Isc
-                        print(f"I_sc = {self.Isc[ch]}[A]")
+                        # print(f"I_sc = {self.Isc[ch]}[A]")
                     if (min(i) <= 0) and (max(i) >= 0):
                         # if we had data on both sizes of 0A, then we can estimate Voc
                         self.Voc[ch] = Voc
-                        print(f"V_oc = {self.Voc[ch]}[V]")
+                        # print(f"V_oc = {self.Voc[ch]}[V]")
 
         # returns dict of maximum power[W], Vmpp, Impp and the index
         return (Pmaxs, Vmpps, Impps, maxIndexs)
@@ -173,7 +171,7 @@ class mppt:
             values[ch] = vmp
         self.sm.configure_dc(values, "v")
         print(f"Launch tracker channels: {channels}")
-        print(f"Launch tracker reset cache: {self.sm._reset_cache}")
+        # print(f"Launch tracker reset cache: {self.sm._reset_cache}")
         self.sm.enable_output(True, channels)
 
         # this locks the smu to the device's power quadrant
@@ -234,7 +232,7 @@ class mppt:
         else:
             print(
                 f"WARNING: MPPT algorithm {algo} not understood, not doing max power "
-                + f"point tracking"
+                + "point tracking"
             )
 
         return (m, ssvocs)
@@ -390,8 +388,8 @@ class mppt:
             # apply new voltage and record a measurement and store the result in slot 0
             self.sm.configure_dc(next_voltages, "v")
             time.sleep(delay_ms / 1000)
-            print(f"MPPT channels: {list(pixels.keys())}")
-            print(f"MPPT reset cache: {self.sm._reset_cache}")
+            # print(f"MPPT channels: {list(pixels.keys())}")
+            # print(f"MPPT reset cache: {self.sm._reset_cache}")
             data = self.sm.measure(list(pixels.keys()), measurement="dc")
             self.detect_short_circuits(data, pixels)
             m.appendleft(data)
@@ -438,10 +436,10 @@ class mppt:
         if snaith_mode is True:
             this_soak_t = snaith_post_soak_t
 
-            print(
-                f"Snaith Pre Soaking @ Mpp (V={start_voltage:0.2f} [V]) for "
-                + f"{this_soak_t:0.1f} seconds..."
-            )
+            # print(
+            #     f"Snaith Pre Soaking @ Mpp (V={start_voltage:0.2f} [V]) for "
+            #     + f"{this_soak_t:0.1f} seconds..."
+            # )
 
             spos = {}
             for ch in pixels.keys():
@@ -760,8 +758,8 @@ class mppt:
         Parameters
         ----------
         data : dictionary
-            Dictionary of data returned from SMU. Keys are channel numbers and values are
-            lists of tuples.
+            Dictionary of data returned from SMU. Keys are channel numbers and values
+            are lists of tuples.
 
         Returns
         -------

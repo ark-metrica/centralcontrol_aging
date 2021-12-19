@@ -38,6 +38,12 @@ def get_args():
         nargs="?",
         help="IP address or hostname of MQTT broker.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Log messages at debug log level.",
+    )
     return parser.parse_args()
 
 
@@ -154,7 +160,7 @@ def _calibrate_spectrum(request, mqtthost):
             user_aborted = True
         except Exception as e:
             traceback.print_exc()
-            _log(f"SPECTRUM CALIBRATION ABORTED! " + str(e), 40, mqttc)
+            _log("SPECTRUM CALIBRATION ABORTED! " + str(e), 40, mqttc)
 
         mqttc.append_payload("measurement/status", pickle.dumps("Ready"), retain=True)
 
@@ -459,7 +465,7 @@ def _ivt(pixels, request, measurement, mqttc):
             # mppt needs light
             if hasattr(measurement, "le"):
                 measurement.le.on()
-            _log(f"Performing max. power tracking.", 20, mqttc)
+            _log("Performing max. power tracking.", 20, mqttc)
             print(f"Tracking maximum power point for {args['mppt_dwell']} seconds.")
 
             kind = "mppt_measurement"
@@ -485,7 +491,7 @@ def _ivt(pixels, request, measurement, mqttc):
             # alert the gui that the list changed
             if pre_mppt_pix != post_mppt_pix:
                 if post_mppt_pix == 0:
-                    _log(f"No devices left to measure.", 30, mqttc)
+                    _log("No devices left to measure.", 30, mqttc)
                     mqttc.append_payload(
                         "plotter/live_devices", pickle.dumps([]), retain=True
                     )
@@ -509,7 +515,7 @@ def _ivt(pixels, request, measurement, mqttc):
             # jsc needs light
             if hasattr(measurement, "le"):
                 measurement.le.on()
-            _log(f"Measuring current at constant voltage.", 20, mqttc)
+            _log("Measuring current at constant voltage.", 20, mqttc)
 
             kind = "it_measurement"
             dh.kind = kind
