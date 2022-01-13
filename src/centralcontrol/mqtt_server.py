@@ -595,14 +595,19 @@ def _run(request, mqtthost, daq_init_queue):
                 _log("Checking DAQ status...", 20, mqttc)
 
             daq_init_msg = daq_init_queue.get(timeout=30)
+            logger.info(f"DAQ init msg: {daq_init_msg}")
 
             if daq_init_msg["init_success"] is False:
-                user_aborted = True
-        except:
+                _log("DAQ setup failed!", 40, mqttc)
+                daq_setup_failed = True
+            else:
+                daq_setup_failed = False
+        except Exception as e:
             # timeout probably occured waiting for response
-            user_aborted = True
+            daq_setup_failed = True
+            logger.exception("DAQ connection check error")
 
-    if user_aborted is False:
+    if (user_aborted is False) and (daq_setup_failed is False):
         with MQTTQueuePublisher() as mqttc:
             mqttc.connect(mqtthost)
             mqttc.loop_start()
