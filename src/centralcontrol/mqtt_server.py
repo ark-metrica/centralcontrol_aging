@@ -677,7 +677,7 @@ def msg_handler(msg_queue, cli_args, process, daq_init_queue):
             request = pickle.loads(msg.payload)
             topic_parts = msg.topic.split("/")
             channel = topic_parts[0]
-            action = topic_parts[-1]
+            action = topic_parts[1]
 
             if channel == "measurement":
                 # perform a requested action
