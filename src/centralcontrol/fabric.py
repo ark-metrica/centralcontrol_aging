@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """High level experiment functions."""
 
+import logging
 import pickle
 
 import numpy as np
@@ -24,6 +25,10 @@ from .illumination import illumination
 from m1kTCPClient import m1kTCPClient
 
 
+# create a child logger
+logger = logging.getLogger(__name__)
+
+
 class fabric(object):
     """Experiment control logic."""
 
@@ -42,7 +47,7 @@ class fabric(object):
     def __init__(self):
         """Get software revision."""
         # self.software_revision = __version__
-        # print("Software revision: {:s}".format(self.software_revision))
+        # logger.info("Software revision: {:s}".format(self.software_revision))
 
     def __enter__(self):
         """Enter the runtime context related to this object."""
@@ -53,9 +58,9 @@ class fabric(object):
 
         Make sure everything gets cleaned up properly.
         """
-        print("exiting...")
+        logger.info("exiting...")
         self.disconnect_all_instruments()
-        print("cleaned up successfully")
+        logger.info("cleaned up successfully")
 
     def compliance_current_guess(self, area=None, jmax=None, imax=None):
         """Guess what the compliance current should be for i-v-t measurements.
@@ -76,7 +81,7 @@ class fabric(object):
 
         # enforce the global current limit
         if ret_val > self.current_limit:
-            print(
+            logger.info(
                 "Warning: Detected & denied an attempt to damage equipment through "
                 + "overcurrent"
             )
@@ -206,10 +211,10 @@ class fabric(object):
 
     def disconnect_all_instruments(self):
         """Disconnect all instruments."""
-        print("disconnecting instruments...")
+        logger.info("disconnecting instruments...")
         while len(self._connected_instruments) > 0:
             instr = self._connected_instruments.pop()
-            print(instr)
+            logger.info(instr)
             if instr == self.sm:
                 self.sm.reset()
             try:

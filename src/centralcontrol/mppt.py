@@ -1,4 +1,5 @@
 """MPPT."""
+import logging
 import pickle
 import time
 import random
@@ -6,6 +7,10 @@ import warnings
 from collections import deque
 
 import numpy
+
+
+# create a child logger
+logger = logging.getLogger(__name__)
 
 
 class mppt:
@@ -74,7 +79,7 @@ class mppt:
             Impps[ch] = Impp
             maxIndexs[ch] = maxIndex
             if light is True:  # this was from a light i-v curve
-                # print(
+                # logger.info(
                 #     "MPPT IV curve inspector investigating new light curve params: "
                 #     + f"{(Pmax, Vmpp, Impp, Voc, Isc)}"
                 # )
@@ -91,7 +96,7 @@ class mppt:
                     new_pmax = True
 
                 if new_pmax is True:
-                    # print(
+                    # logger.info(
                     #     f"New refrence IV curve found for MPPT algo because {because}"
                     # )
 
@@ -100,18 +105,18 @@ class mppt:
                     self.Pmax[ch] = Pmax
                     # store off measurement value for this one
                     self.Mmpp[ch] = (Vmpp, Impp, Tmpp)
-                    # print(
+                    # logger.info(
                     #     f"V_mpp = {self.Vmpp[ch]}[V]\nI_mpp = {self.Impp[ch]}[A]\n"
                     #     + f"P_max = {self.Pmax[ch]}[W]"
                     # )
                     if (min(v) <= 0) and (max(v) >= 0):
                         # if we had data on both sizes of 0V, then we can estimate Isc
                         self.Isc[ch] = Isc
-                        # print(f"I_sc = {self.Isc[ch]}[A]")
+                        # logger.info(f"I_sc = {self.Isc[ch]}[A]")
                     if (min(i) <= 0) and (max(i) >= 0):
                         # if we had data on both sizes of 0A, then we can estimate Voc
                         self.Voc[ch] = Voc
-                        # print(f"V_oc = {self.Voc[ch]}[V]")
+                        # logger.info(f"V_oc = {self.Voc[ch]}[V]")
 
         # returns dict of maximum power[W], Vmpp, Impp and the index
         return (Pmaxs, Vmpps, Impps, maxIndexs)
@@ -149,7 +154,7 @@ class mppt:
             ssvocs = self.sm.measure(channels, measurement="dc")
             for ch, ch_data in sorted(ssvocs.items()):
                 self.Voc[ch] = ch_data[-1][0]
-            print(
+            logger.info(
                 f"mppt algo had to find V_oc = {self.Voc} [V] because nobody gave us "
                 + "any voltage info..."
             )
@@ -160,7 +165,7 @@ class mppt:
             # start at 70% of Voc if nobody told us otherwise
             for ch, voc in sorted(self.Voc.items()):
                 self.Vmpp[ch] = 0.7 * voc
-            print(
+            logger.info(
                 f"mppt algo assuming V_mpp = {self.Vmpp} [V] from V_oc because nobody "
                 + "told us otherwise..."
             )
@@ -170,8 +175,8 @@ class mppt:
         for ch, vmp in sorted(self.Vmpp.items()):
             values[ch] = vmp
         self.sm.configure_dc(values, "v")
-        print(f"Launch tracker channels: {channels}")
-        # print(f"Launch tracker reset cache: {self.sm._reset_cache}")
+        logger.info(f"Launch tracker channels: {channels}")
+        # logger.info(f"Launch tracker reset cache: {self.sm._reset_cache}")
         self.sm.enable_output(True, channels)
 
         # this locks the smu to the device's power quadrant
@@ -230,7 +235,7 @@ class mppt:
                     )
                 )
         else:
-            print(
+            logger.info(
                 f"WARNING: MPPT algorithm {algo} not understood, not doing max power "
                 + "point tracking"
             )
@@ -266,18 +271,18 @@ class mppt:
         if NPLC != -1:
             self.sm.nplc = NPLC
 
-        print(
+        logger.info(
             "===Starting up gradient descent maximum power point tracking algorithm==="
         )
-        print(f"Learning rate (alpha) = {alpha}")
-        print(f"V_initial = {start_voltage} [V]")
-        print(f"delta_zero = {delta_zero} [V]")  # first step
-        print(f"momentum = {momentum}")
-        print(f"Smallest step (min_step) = {min_step*1000} [mV]")
-        print(f"Largest step (max_step) = {max_step*1000} [mV]")
-        print(f"NPLC = {self.sm.nplc}")
-        print(f"Snaith mode = {snaith_mode}")
-        print(f"Source-measure delay = {delay_ms} [ms]")
+        logger.info(f"Learning rate (alpha) = {alpha}")
+        logger.info(f"V_initial = {start_voltage} [V]")
+        logger.info(f"delta_zero = {delta_zero} [V]")  # first step
+        logger.info(f"momentum = {momentum}")
+        logger.info(f"Smallest step (min_step) = {min_step*1000} [mV]")
+        logger.info(f"Largest step (max_step) = {max_step*1000} [mV]")
+        logger.info(f"NPLC = {self.sm.nplc}")
+        logger.info(f"Snaith mode = {snaith_mode}")
+        logger.info(f"Source-measure delay = {delay_ms} [ms]")
 
         self.q = deque()
         process_q_len = 20
@@ -288,7 +293,7 @@ class mppt:
         if snaith_mode is True:
             duration = duration - snaith_pre_soak_t - snaith_post_soak_t
             this_soak_t = snaith_pre_soak_t
-            print(
+            logger.info(
                 f"Snaith Pre Soaking @ Mpp (V={start_voltage:0.2f} [V]) for "
                 + f"{this_soak_t:0.1f} seconds..."
             )
@@ -388,8 +393,8 @@ class mppt:
             # apply new voltage and record a measurement and store the result in slot 0
             self.sm.configure_dc(next_voltages, "v")
             time.sleep(delay_ms / 1000)
-            # print(f"MPPT channels: {list(pixels.keys())}")
-            # print(f"MPPT reset cache: {self.sm._reset_cache}")
+            # logger.info(f"MPPT channels: {list(pixels.keys())}")
+            # logger.info(f"MPPT reset cache: {self.sm._reset_cache}")
             data = self.sm.measure(list(pixels.keys()), measurement="dc")
             self.detect_short_circuits(data, pixels)
             m.appendleft(data)
@@ -436,7 +441,7 @@ class mppt:
         if snaith_mode is True:
             this_soak_t = snaith_post_soak_t
 
-            # print(
+            # logger.info(
             #     f"Snaith Pre Soaking @ Mpp (V={start_voltage:0.2f} [V]) for "
             #     + f"{this_soak_t:0.1f} seconds..."
             # )
@@ -504,10 +509,10 @@ class mppt:
     #     dAngleMax, exploration limits, [exploration degrees] (plus and minus)
     #     dwell_time, dwell period duration in seconds
     #     """
-    #     print("===Starting up dumb maximum power point tracking algorithm===")
-    #     print(f"dAngleMax = {dAngleMax} [deg]")
-    #     print(f"dwell_time = {dwell_time} [s]")
-    #     print(f"sweep_delay_ms = {sweep_delay_ms} [ms]")
+    #     logger.info("===Starting up dumb maximum power point tracking algorithm===")
+    #     logger.info(f"dAngleMax = {dAngleMax} [deg]")
+    #     logger.info(f"dwell_time = {dwell_time} [s]")
+    #     logger.info(f"sweep_delay_ms = {sweep_delay_ms} [ms]")
 
     #     # work in voltage steps that are this fraction of Voc
     #     dV = max([voc for ch, voc in self.Voc]) / 301
@@ -522,7 +527,7 @@ class mppt:
     #     else:
     #         initial_soak = dwell_time
 
-    #     print(f"Soaking @ Mpp (V={self.Vmpp} [V]) for {initial_soak:0.1f} seconds...")
+    #     logger.info(f"Soaking @ Mpp (V={self.Vmpp} [V]) for {initial_soak:0.1f} seconds...")
     #     # init container for all data
     #     ssmpps = {}
     #     for ch in range(self.sm.num_channels):
@@ -554,12 +559,12 @@ class mppt:
 
     #     run_time = time.time() - self.t0
     #     while not self.abort and (run_time < duration):
-    #         print("Exploring for new Mpp...")
+    #         logger.info("Exploring for new Mpp...")
     #         i_explore = numpy.array(Impp)
     #         v_explore = numpy.array(Vmpp)
 
     #         angleMpp = numpy.rad2deg(numpy.arctan(Impp / Vmpp * Voc / Isc))
-    #         print(f"MPP ANGLE = {angleMpp:0.2f}")
+    #         logger.info(f"MPP ANGLE = {angleMpp:0.2f}")
     #         v_set = Vmpp
     #         highEdgeTouched = False
     #         lowEdgeTouched = False
@@ -573,7 +578,7 @@ class mppt:
     #             v_explore = numpy.append(v_explore, v)
     #             thisAngle = numpy.rad2deg(numpy.arctan(i / v * Voc / Isc))
     #             dAngle = angleMpp - thisAngle
-    #             # print(
+    #             # logger.info(
     #             #     f"dAngle={dAngle}, highEdgeTouched={highEdgeTouched}, "
     #             #     + f"lowEdgeTouched={lowEdgeTouched}"
     #             # )
@@ -581,12 +586,12 @@ class mppt:
     #             if (highEdgeTouched is False) and (dAngle > dAngleMax):
     #                 highEdgeTouched = True
     #                 dV = dV * -1
-    #                 print("Reached high voltage edge because angle exceeded")
+    #                 logger.info("Reached high voltage edge because angle exceeded")
 
     #             if (lowEdgeTouched is False) and (dAngle < -dAngleMax):
     #                 lowEdgeTouched = True
     #                 dV = dV * -1
-    #                 print("Reached low voltage edge because angle exceeded")
+    #                 logger.info("Reached low voltage edge because angle exceeded")
 
     #             v_set = v_set + dV
     #             if ((v_set > 0) and (dV > 0)) or ((v_set < 0) and (dV < 0)):
@@ -595,13 +600,13 @@ class mppt:
     #                     highEdgeTouched = True
     #                     dV = dV * -1  # switch our voltage walking direction
     #                     v_set = v_set + dV
-    #                     print("WARNING: Reached high voltage edge because we hit Voc")
+    #                     logger.info("WARNING: Reached high voltage edge because we hit Voc")
 
     #                 if (lowEdgeTouched is False) and (dV < 0) and v_set <= Voc:
     #                     lowEdgeTouched = True
     #                     dV = dV * -1  # switch our voltage walking direction
     #                     v_set = v_set + dV
-    #                     print("WARNING: Reached high voltage edge because we hit Voc")
+    #                     logger.info("WARNING: Reached high voltage edge because we hit Voc")
 
     #             else:
     #                 #  walking towards Jsc
@@ -609,15 +614,15 @@ class mppt:
     #                     highEdgeTouched = True
     #                     dV = dV * -1  # switch our voltage walking direction
     #                     v_set = v_set + dV
-    #                     print("WARNING: Reached low voltage edge because we hit 0V")
+    #                     logger.info("WARNING: Reached low voltage edge because we hit 0V")
 
     #                 if (lowEdgeTouched is False) and (dV < 0) and v_set <= 0:
     #                     lowEdgeTouched = True
     #                     dV = dV * -1  # switch our voltage walking direction
     #                     v_set = v_set + dV
-    #                     print("WARNING: Reached low voltage edge because we hit 0V")
+    #                     logger.info("WARNING: Reached low voltage edge because we hit 0V")
 
-    #         print("Done exploring.")
+    #         logger.info("Done exploring.")
 
     #         # find the powers for the values we just explored
     #         p_explore = v_explore * i_explore * -1
@@ -625,13 +630,13 @@ class mppt:
     #         Vmpp = v_explore[maxIndex]
     #         Impp = i_explore[maxIndex]
 
-    #         print(f"New Mpp found: {p_explore[maxIndex] * 1000:.6f} mW @ {Vmpp:.6f} V")
+    #         logger.info(f"New Mpp found: {p_explore[maxIndex] * 1000:.6f} mW @ {Vmpp:.6f} V")
 
     #         dFromLastMppAngle = angleMpp - numpy.rad2deg(
     #             numpy.arctan(Impp / Vmpp * Voc / Isc)
     #         )
 
-    #         print(
+    #         logger.info(
     #             f"That's {dFromLastMppAngle:.6f} degrees different from the previous "
     #             + "Mpp."
     #         )
@@ -641,7 +646,7 @@ class mppt:
     #         # if time_left <= 0:
     #         #  break
 
-    #         print("Teleporting to Mpp!")
+    #         logger.info("Teleporting to Mpp!")
     #         self.sm.setSource(Vmpp)
 
     #         # if time_left < dwell_time:
@@ -649,7 +654,7 @@ class mppt:
     #         # else:
     #         dwell = dwell_time
 
-    #         print(
+    #         logger.info(
     #             f"Dwelling @ Mpp (V={Vmpp * 1000:0.2f}[mV]) for {dwell:0.1f} seconds..."
     #         )
     #         dq = self.sm.measureUntil(t_dwell=dwell, cb=callback)
@@ -748,7 +753,7 @@ class mppt:
                 payload = {"level": 30, "msg": warn_msg}
                 if self.mqttc is not None:
                     self.mqttc.append_payload("measurement/log", pickle.dumps(payload))
-                print(warn_msg)
+                logger.info(warn_msg)
             else:
                 pass
 

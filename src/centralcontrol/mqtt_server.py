@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import argparse
 import collections
+import logging
 import multiprocessing
 import os
 import pickle
@@ -26,6 +27,17 @@ if (__name__ == "__main__") and (__package__ in [None, ""]):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from .fabric import fabric, _log
+
+# set up logger
+logging.captureWarnings(True)
+logger = logging.getLogger()
+LOG_LEVEL = 20  # INFO 
+logger.setLevel(LOG_LEVEL)
+
+ch = logging.StreamHandler()
+ch.setLevel(LOG_LEVEL)
+ch.setFormatter(logging.Formatter("%(asctime)s|%(name)s|%(levelname)s|%(message)s"))
+logger.addHandler(ch)
 
 
 def get_args():
@@ -82,7 +94,7 @@ def stop_process(cli_args, process):
     if process.is_alive() is True:
         os.kill(process.pid, signal.SIGINT)
         process.join()
-        print(f"Process still alive?: {process.is_alive()}")
+        logger.info(f"Process still alive?: {process.is_alive()}")
         payload = {"level": 20, "msg": "Request to stop completed!"}
         publish.single(
             "measurement/log", pickle.dumps(payload), qos=2, hostname=cli_args.mqtthost
@@ -117,7 +129,7 @@ def _calibrate_spectrum(request, mqtthost):
     dummy : bool
         Flag for dummy mode using virtual instruments.
     """
-    print("Calibrating spectrum...")
+    logger.info("Calibrating spectrum...")
 
     user_aborted = False
 
@@ -155,7 +167,7 @@ def _calibrate_spectrum(request, mqtthost):
 
                 _log("Finished calibrating solar simulator spectrum!", 20, mqttc)
 
-            print("Spectrum calibration complete.")
+            logger.info("Spectrum calibration complete.")
         except KeyboardInterrupt:
             user_aborted = True
         except Exception as e:
@@ -405,7 +417,7 @@ def _ivt(pixels, request, measurement, mqttc):
 
             if args["sweep_check"] is True:
                 _log(f"Performing first {sweep} sweep.", 20, mqttc)
-                print(
+                logger.info(
                     f'Sweeping voltage from {args["sweep_start"]} V to '
                     + f'{args["sweep_end"]} V'
                 )
@@ -434,7 +446,7 @@ def _ivt(pixels, request, measurement, mqttc):
 
             if args["return_switch"] is True:
                 _log(f"Performing second {sweep} sweep.", 20, mqttc)
-                print(
+                logger.info(
                     f'Sweeping voltage from {args["sweep_end"]} V to '
                     + f'{args["sweep_start"]} V'
                 )
@@ -466,7 +478,7 @@ def _ivt(pixels, request, measurement, mqttc):
             if hasattr(measurement, "le"):
                 measurement.le.on()
             _log("Performing max. power tracking.", 20, mqttc)
-            print(f"Tracking maximum power point for {args['mppt_dwell']} seconds.")
+            logger.info(f"Tracking maximum power point for {args['mppt_dwell']} seconds.")
 
             kind = "mppt_measurement"
             dh.kind = kind
@@ -564,7 +576,7 @@ def _run(request, mqtthost, daq_init_queue):
         on the init status of the DAQ. The _run method always runs in parallel process
         so requires a multiprocessing.Queue.
     """
-    print("Running measurement...")
+    logger.info("Running measurement...")
 
     user_aborted = False
 
@@ -609,7 +621,7 @@ def _run(request, mqtthost, daq_init_queue):
                     # report complete
                     _log("Run complete!", 20, mqttc)
 
-                print("Measurement complete.")
+                logger.info("Measurement complete.")
             except KeyboardInterrupt:
                 pass
             except Exception as e:
@@ -718,7 +730,7 @@ def main():
         "measurement/status", pickle.dumps("Ready"), qos=2, retain=True,
     ).wait_for_publish()
 
-    print(f"{client_id} connected!")
+    logger.info(f"{client_id} connected!")
 
     msg_handler(msg_queue, cli_args, process, daq_init_queue)
 
