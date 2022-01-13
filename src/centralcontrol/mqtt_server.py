@@ -729,6 +729,7 @@ def main():
     mqttc.on_message = lambda mqttc, obj, msg: on_message(mqttc, obj, msg, msg_queue)
     mqttc.connect(cli_args.mqtthost)
     mqttc.subscribe("measurement/#", qos=2)
+    mqttc.subscribe("daq/#", qos=2)
     mqttc.loop_start()
 
     mqttc.publish(
